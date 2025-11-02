@@ -68,3 +68,26 @@ def player_register(req: func.HttpRequest) -> func.HttpResponse:
         json.dumps({"result": True, "msg": "OK"}),
         mimetype="application/json"
     )
+
+@app.function_name(name="player_login")
+@app.route(route="player/login",methods=["GET"])
+def player_login(req: func.HttpRequest) -> func.HttpResponse:
+    body = req.get_json()
+    username = body["username"]
+    password = body["password"]
+
+    query = f"SELECT * FROM players p WHERE p.username = {username}"
+    items = list(player_container.query_items(query=query, enable_cross_partition_query=True))
+
+    if not items:
+        response = {"result": False , "msg": "Username or password incorrect"}
+
+    else:
+        player = items[0]
+        if player.get("password")==password:
+            response = {"result": True, "msg": "OK"}
+        else:
+            response = {"result": False, "msg": "Username or password incorrect"}
+    
+    return func.HttpResponse(json.dumps(response), mimetype="application/json")
+    

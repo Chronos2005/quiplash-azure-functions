@@ -76,7 +76,7 @@ def player_login(req: func.HttpRequest) -> func.HttpResponse:
     username = body["username"]
     password = body["password"]
 
-    query = f"SELECT * FROM players p WHERE p.username = {username}"
+    query = f"SELECT * FROM players p WHERE p.username = '{username}'"
     items = list(player_container.query_items(query=query, enable_cross_partition_query=True))
 
     if not items:
@@ -91,3 +91,29 @@ def player_login(req: func.HttpRequest) -> func.HttpResponse:
     
     return func.HttpResponse(json.dumps(response), mimetype="application/json")
     
+@app.function_name(name="update_player")
+@app.route(route="player/update",methods=["PUT"])
+def update_player(req: func.HttpRequest) -> func.HttpResponse:
+    body = req.get_json()
+    username = body["username"]
+    additional_games_played = body["add_to_games_played"]
+    additional_score = body["add_to_score"]
+
+    query = f"SELECT * FROM players p WHERE p.username = '{username}'"
+    items = list(player_container.query_items(query=query, enable_cross_partition_query=True))
+
+    if not items:
+        response = {"result": False , "msg": "Player does not exist"}
+    
+    else:
+        player = items[0]
+        # Update fields
+        player["games_played"] = player.get("games_played", 0) + additional_games_played
+        player["total_score"] = player.get("total_score", 0) + additional_score
+
+
+        player_container.replace_item(item=player["id"], body=player)
+
+        response = {"result": True, "msg": "OK"}
+    
+    return func.HttpResponse(json.dumps(response),mimetype="application/json")

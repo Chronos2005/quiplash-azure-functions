@@ -380,3 +380,57 @@ def delete_prompt(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json",
             status_code=500
         )
+
+@app.function_name(name="utils_get") #
+@app.route(route="utils/get", methods=["GET"])  
+def utils_get(req: func.HttpRequest) -> func.HttpResponse:
+    try:
+        data = req.get_json()
+    except ValueError:
+        return func.HttpResponse(
+            json.dumps({"error": "Invalid or missing JSON body"}),
+            status_code=400,
+            mimetype="application/json"
+        )
+
+    
+    players = data.get("players", [])
+    tags = data.get("tag_list", [])
+
+   
+    query = """
+    SELECT * FROM c
+    WHERE ARRAY_CONTAINS(@players, c.username)
+    AND EXISTS (
+        SELECT VALUE t 
+        FROM t IN c.tags 
+        WHERE ARRAY_CONTAINS(@tag_list, t)
+    )
+    """
+
+    params = [
+        {"name": "@players", "value": players},
+        {"name": "@tag_list", "value": tags}
+    ]
+
+    try:
+        items = list(prompt_container.query_items(
+            query=query,
+            parameters=params,
+            enable_cross_partition_query=True 
+        ))
+
+       
+        return func.HttpResponse(
+            json.dumps(items, ensure_ascii=False),
+            status_code=200,
+            mimetype="application/json"
+        )
+
+    except Exception as e:
+        logging.error(f"Error in /utils/get: {str(e)}") 
+        return func.HttpResponse(
+            json.dumps({"error": str(e)}),
+            status_code=500,
+            mimetype="application/json"
+        )

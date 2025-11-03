@@ -324,3 +324,59 @@ def moderate_prompt(req: func.HttpRequest) -> func.HttpResponse:
         mimetype="application/json",
         status_code=200
     )
+
+@app.function_name(name="delete_prompt")
+@app.route(route="prompt/delete", methods=["POST"])
+def delete_prompt(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info("Processing request to delete prompts by player.")
+
+    try:
+        data = req.get_json()
+        username = data.get("player")
+    except Exception as e:
+        logging.error(f"Invalid JSON body: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({"result": False, "msg": "Invalid JSON body"}),
+            mimetype="application/json",
+            status_code=400
+        )
+
+    if not username:
+        return func.HttpResponse(
+            json.dumps({"result": False, "msg": "Missing 'player' key"}),
+            mimetype="application/json",
+            status_code=400
+        )
+
+    try:
+        
+        query = "SELECT c.id FROM c"
+        
+        items_to_delete = list(prompt_container.query_items(
+            query=query,
+            partition_key=username  
+        ))
+        
+        deleted_count = 0
+        for item in items_to_delete:
+            item_id = item["id"]
+        
+            prompt_container.delete_item(item=item_id, partition_key=username)
+            deleted_count += 1
+            
+
+        response_msg = f"{deleted_count} prompts deleted"
+        response_body = {"result": True, "msg": response_msg}
+        
+        return func.HttpResponse(
+            json.dumps(response_body),
+            mimetype="application/json"
+        )
+
+    except Exception as e:
+        logging.error(f"Error deleting prompts for {username}: {e}")
+        return func.HttpResponse(
+            json.dumps({"result": False, "msg": "An internal error occurred"}),
+            mimetype="application/json",
+            status_code=500
+        )

@@ -32,6 +32,8 @@ TRANSLATOR_REGION= os.environ.get("TRANSLATOR_REGION")
 
 SUPPORTED_LANGS = ["en", "cy", "es", "ta", "zh-Hans", "ar"]
 
+CONTENT_SAFETY_ENDPOINT = os.environ.get("CONTENT_SAFETY_ENDPOINT")
+CONTENT_SAFETY_KEY = os.environ.get("CONTENT_SAFETY_KEY")
 
 @app.function_name(name="player_register")
 @app.route(route="player/register", methods=["POST"])
@@ -217,4 +219,108 @@ def create_prompt(req: func.HttpRequest) -> func.HttpResponse:
             mimetype="application/json",
             status_code=500
         )
+@app.function_name(name="moderate_prompt")
+@app.route(route="prompt/moderate", methods=["POST"]) # Fixed route: removed leading "/"
+def moderate_prompt(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info("Moderating prompts...")
 
+    try:
+        data = req.get_json()
+        prompt_ids = data.get("prompt-ids", [])
+    except Exception as e:
+        logging.error(f"Invalid JSON body: {str(e)}")
+        return func.HttpResponse(
+            json.dumps({"result": False, "msg": f"Invalid JSON body: {str(e)}"}),
+            mimetype="application/json",
+            status_code=400
+        )
+
+    # API setup
+    headers = {
+        "Ocp-Apim-Subscription-Key": CONTENT_SAFETY_KEY,
+        "Content-Type": "application/json"
+    }
+
+    url = f"{CONTENT_SAFETY_ENDPOINT}/contentsafety/text:analyze?api-version=2024-09-01"
+
+    results = []
+
+    for prompt_id in prompt_ids:
+        
+
+        text_to_moderate = None
+        try:
+
+            query = "SELECT * FROM c WHERE c.id = @prompt_id"
+            params = [{"name": "@prompt_id", "value": prompt_id}]
+            
+            items = list(prompt_container.query_items(
+                query=query, 
+                parameters=params, 
+                enable_cross_partition_query=True
+            ))
+
+            if items:
+                prompt_doc = items[0]
+                # Find the English text as required by the spec
+                for text_obj in prompt_doc.get("texts", []):
+                    if text_obj.get("language") == "en":
+                        text_to_moderate = text_obj.get("text")
+                        break
+                if not text_to_moderate:
+                    logging.warning(f"Prompt {prompt_id} found but has no 'en' text.")
+            else:
+                # If a prompt-id does not exist, do not return error.
+                logging.warning(f"Prompt {prompt_id} not found in database.")
+                
+        except Exception as e:
+            logging.error(f"Error fetching prompt {prompt_id} from Cosmos DB: {e}")
+            continue # Skip this prompt if DB read fails
+        
+        # If no prompt was found or it had no 'en' text, skip to the next ID
+        if not text_to_moderate:
+            continue
+
+
+
+        body = {
+            "text": text_to_moderate,
+            "categories": ["Hate", "Sexual", "SelfHarm", "Violence"],
+            "outputType": "FourSeverityLevels"
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=body)
+            response.raise_for_status() # Raise an exception for bad status codes
+            analysis = response.json()
+        except Exception as e:
+            logging.error(f"Error calling Content Safety API for {prompt_id}: {e}")
+            continue # Skip this prompt if API call fails
+
+        # Extract severity scores
+        categories = analysis.get("categoriesAnalysis", [])
+        avg_severity = 0.0 
+
+        if categories:
+            try:
+                severities = [c["severity"] for c in categories]
+                if severities: # Avoid division by zero
+                    avg_severity = sum(severities) / len(severities)
+            except KeyError:
+                logging.error(f"Content Safety API response format unexpected for {prompt_id}")
+                continue # Skip if response format is wrong
+
+        # Determine outcome based on spec
+        outcome = avg_severity > 2
+
+        results.append({
+            "prompt-id": prompt_id,
+            "outcome": outcome,
+            "average_severity": round(avg_severity, 2) 
+        })
+
+    return func.HttpResponse(
+        json.dumps(results), 
+        mimetype="application/json",
+        status_code=200
+    )

@@ -6,6 +6,7 @@ from azure.cosmos import CosmosClient
 import os
 import requests
 import uuid
+import time
 
 app = func.FunctionApp()
 
@@ -434,3 +435,75 @@ def utils_get(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
             mimetype="application/json"
         )
+
+@app.function_name(name="utils_welcome")
+@app.cosmos_db_trigger(
+    arg_name="documents",
+    database_name=DATABASE_NAME,
+    container_name=PLAYER_CONTAINER_NAME,
+    connection="AzureCosmosDBConnectionString",
+    lease_container_name="leases", 
+    create_lease_container_if_not_exists=True 
+) 
+def utils_welcome(documents: func.DocumentList) -> None:
+    logging.info(f"Cosmos DB trigger processing {len(documents)} documents.")
+    
+    # Add a delay to handle potential race conditions during testing
+    time.sleep(1) 
+
+    for doc in documents:
+        try:
+    
+            # We identify a new registration by checking if the scores are 0.
+            is_new_player = (doc.get("games_played") == 0 and doc.get("total_score") == 0)
+            
+            if is_new_player:
+                username = doc.get("username")
+                if not username:
+                    logging.warning("Document with score 0 had no username.")
+                    continue
+                    
+                logging.info(f"New player detected: {username}. Creating welcome prompt.")
+                
+       
+                source_text = f"Welcome to COMP3207, {username}"
+                source_lang = "en"
+                translated_texts = [{"language": source_lang, "text": source_text}]
+                
+                # Get list of languages to translate *t
+                langs_to_translate = [lang for lang in SUPPORTED_LANGS if lang != source_lang]
+
+                if langs_to_translate:
+                    headers = {
+                        "Ocp-Apim-Subscription-Key": TRANSLATOR_KEY,
+                        "Ocp-Apim-Subscription-Region": TRANSLATOR_REGION,
+                        "Content-Type": "application/json"
+                    }
+                    translate_url = f"{TRANSLATOR_ENDPOINT}/translate?api-version=3.0&to=" + "&to=".join(langs_to_translate)
+                    
+                    response = requests.post(
+                        translate_url,
+                        headers=headers,
+                        json=[{"text": source_text}]
+                    )
+                    response.raise_for_status() # Check for errors
+                    
+                    translations = response.json()[0]["translations"]
+                    for trans in translations:
+                        translated_texts.append({"language": trans["to"], "text": trans["text"]})
+
+                # Create the full prompt document
+                prompt_doc = {
+                    "id": str(uuid.uuid4()),
+                    "username": username,
+                    "texts": translated_texts,
+                    "tags": [] 
+                }
+
+                # Insert into the prompt container
+                prompt_container.create_item(prompt_doc)
+                logging.info(f"Welcome prompt created for {username}.")
+
+        except Exception as e:
+            logging.error(f"Error processing document for {doc.get('id')}: {e}")
+            pass

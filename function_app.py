@@ -68,7 +68,7 @@ def player_register(req: func.HttpRequest) -> func.HttpResponse:
 
     # Create new player
     player_doc = {
-        "id": username,
+        "id": str(uuid.uuid4()),
         "username": username,
         "password": password,
         "games_played": 0,

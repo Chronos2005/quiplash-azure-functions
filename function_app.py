@@ -37,7 +37,7 @@ CONTENT_SAFETY_ENDPOINT = os.environ.get("CONTENT_SAFETY_ENDPOINT")
 CONTENT_SAFETY_KEY = os.environ.get("CONTENT_SAFETY_KEY")
 
 @app.function_name(name="player_register")
-@app.route(route="player/register", methods=["POST"])
+@app.route(route="player/register", methods=["POST"],auth_level=func.AuthLevel.FUNCTION)
 def player_register(req: func.HttpRequest) -> func.HttpResponse:
     data = req.get_json()
     username = data["username"]
@@ -82,7 +82,7 @@ def player_register(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 @app.function_name(name="player_login")
-@app.route(route="player/login",methods=["GET"])
+@app.route(route="player/login",methods=["GET"],auth_level=func.AuthLevel.FUNCTION)
 def player_login(req: func.HttpRequest) -> func.HttpResponse:
     body = req.get_json()
     username = body["username"]
@@ -104,7 +104,7 @@ def player_login(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(json.dumps(response), mimetype="application/json")
     
 @app.function_name(name="update_player")
-@app.route(route="player/update",methods=["PUT"])
+@app.route(route="player/update",methods=["PUT"],auth_level=func.AuthLevel.FUNCTION)
 def update_player(req: func.HttpRequest) -> func.HttpResponse:
     body = req.get_json()
     username = body["username"]
@@ -132,7 +132,7 @@ def update_player(req: func.HttpRequest) -> func.HttpResponse:
 
 
 @app.function_name(name="create_prompt")
-@app.route(route="prompt/create", methods=["POST"])
+@app.route(route="prompt/create", methods=["POST"],auth_level=func.AuthLevel.FUNCTION)
 def create_prompt(req: func.HttpRequest) -> func.HttpResponse:
     try:
         data = req.get_json()
@@ -221,7 +221,7 @@ def create_prompt(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500
         )
 @app.function_name(name="moderate_prompt")
-@app.route(route="prompt/moderate", methods=["POST"]) # Fixed route: removed leading "/"
+@app.route(route="prompt/moderate", methods=["POST"],auth_level=func.AuthLevel.FUNCTION) 
 def moderate_prompt(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Moderating prompts...")
 
@@ -327,7 +327,7 @@ def moderate_prompt(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 @app.function_name(name="delete_prompt")
-@app.route(route="prompt/delete", methods=["POST"])
+@app.route(route="prompt/delete", methods=["POST"],auth_level=func.AuthLevel.FUNCTION)
 def delete_prompt(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Processing request to delete prompts by player.")
 
@@ -383,7 +383,7 @@ def delete_prompt(req: func.HttpRequest) -> func.HttpResponse:
         )
 
 @app.function_name(name="utils_get") #
-@app.route(route="utils/get", methods=["GET"])  
+@app.route(route="utils/get", methods=["GET"],auth_level=func.AuthLevel.FUNCTION)  
 def utils_get(req: func.HttpRequest) -> func.HttpResponse:
     try:
         data = req.get_json()

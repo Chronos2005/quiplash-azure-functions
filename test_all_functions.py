@@ -36,7 +36,7 @@ PROMPT_CONTAINER = DATABASE.get_container_client(settings['PromptContainerName']
 # --- Base URL and Auth ---
 LOCAL_URL = 'http://localhost:7071/'
 DEPLOYED_URL = 'https://quiplash-ram1g23-geftavf6dja3ekbk.francecentral-01.azurewebsites.net'
-BASE_URL = DEPLOYED_URL
+BASE_URL = LOCAL_URL
 FUNCTION_KEY = settings['FunctionAppKey']
 HEADERS = {'x-functions-key': FUNCTION_KEY}
 

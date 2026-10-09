@@ -27,14 +27,14 @@ player_container = database.get_container_client(PLAYER_CONTAINER_NAME)
 prompt_container = database.get_container_client(PROMPT_CONTAINER_NAME)
 
 # Translation set up
-TRANSLATOR_ENDPOINT = os.environ.get("TRANSLATOR_ENDPOINT")
-TRANSLATOR_KEY = os.environ.get("TRANSLATOR_KEY")
+TRANSLATOR_ENDPOINT = os.environ.get("TranslationEndpoint")
+TRANSLATOR_KEY = os.environ.get("TranslationKey")
 TRANSLATOR_REGION= os.environ.get("TRANSLATOR_REGION")
 
 SUPPORTED_LANGS = ["en", "cy", "es", "ta", "zh-Hans", "ar"]
 
-CONTENT_SAFETY_ENDPOINT = os.environ.get("CONTENT_SAFETY_ENDPOINT")
-CONTENT_SAFETY_KEY = os.environ.get("CONTENT_SAFETY_KEY")
+CONTENT_SAFETY_ENDPOINT = os.environ.get("ContentSafetyEndpoint")
+CONTENT_SAFETY_KEY = os.environ.get("ContentSafetyKey")
 
 @app.function_name(name="player_register")
 @app.route(route="player/register", methods=["POST"],auth_level=func.AuthLevel.FUNCTION)
@@ -56,7 +56,7 @@ def player_register(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     # Checking if that username is alredy used
-    query = "SELECT * FROM players p WHERE p.username = @username"
+    query = "SELECT * FROM player p WHERE p.username = @username"
     params = [{"name": "@username", "value": username}]
     items = list(player_container.query_items(query=query, parameters=params, enable_cross_partition_query=True))
 
@@ -88,7 +88,7 @@ def player_login(req: func.HttpRequest) -> func.HttpResponse:
     username = body["username"]
     password = body["password"]
 
-    query = f"SELECT * FROM players p WHERE p.username = '{username}'"
+    query = f"SELECT * FROM player p WHERE p.username = '{username}'"
     items = list(player_container.query_items(query=query, enable_cross_partition_query=True))
 
     if not items:
@@ -111,7 +111,7 @@ def update_player(req: func.HttpRequest) -> func.HttpResponse:
     additional_games_played = body["add_to_games_played"]
     additional_score = body["add_to_score"]
 
-    query = f"SELECT * FROM players p WHERE p.username = '{username}'"
+    query = f"SELECT * FROM player p WHERE p.username = '{username}'"
     items = list(player_container.query_items(query=query, enable_cross_partition_query=True))
 
     if not items:
@@ -448,8 +448,6 @@ def utils_get(req: func.HttpRequest) -> func.HttpResponse:
 def utils_welcome(documents: func.DocumentList) -> None:
     logging.info(f"Cosmos DB trigger processing {len(documents)} documents.")
     
-    # Add a delay to handle potential race conditions during testing
-    time.sleep(1) 
 
     for doc in documents:
         try:
@@ -470,7 +468,7 @@ def utils_welcome(documents: func.DocumentList) -> None:
                 source_lang = "en"
                 translated_texts = [{"language": source_lang, "text": source_text}]
                 
-                # Get list of languages to translate *t
+                # Get list of languages to translate 
                 langs_to_translate = [lang for lang in SUPPORTED_LANGS if lang != source_lang]
 
                 if langs_to_translate:
